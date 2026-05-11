@@ -1242,14 +1242,42 @@ function genImg(){
     ctx.fillStyle='#A07820';ctx.font='italic 34px Georgia,serif';
     ctx.fillText('Ndefowo — Fouta',W/2,sy);
 
-    // Télécharger
+    // Télécharger / Partager sur mobile
     setTimeout(function(){
-      var a=document.createElement('a');
-      a.href=cv.toDataURL('image/jpeg',.93);
-      a.download='KawLyChef_'+title.replace(/\s+/g,'_').substring(0,20)+'.jpg';
-      document.body.appendChild(a);a.click();document.body.removeChild(a);
-      toast('🎨 Image générée !');
-    },200);
+      try {
+        cv.toBlob(function(blob){
+          if(!blob){ toast('❌ Erreur génération'); return; }
+          var fname = 'KawLyChef_'+title.replace(/[^a-zA-Z0-9]/g,'_').substring(0,20)+'.jpg';
+          // Web Share API (Android/iOS) — partage natif
+          if(navigator.share && navigator.canShare && navigator.canShare({files:[new File([blob],fname,{type:'image/jpeg'})]})){
+            var file = new File([blob], fname, {type:'image/jpeg'});
+            navigator.share({files:[file], title:'Kaw Ly Chef — '+title})
+              .then(function(){ toast('🎨 Image partagée !'); })
+              .catch(function(e){ if(e.name!=='AbortError') dlFallback(blob,fname); });
+          } else {
+            dlFallback(blob, fname);
+          }
+        }, 'image/jpeg', 0.93);
+      } catch(e) {
+        toast('❌ '+e.message);
+      }
+    }, 200);
+  }
+  function dlFallback(blob, fname){
+    try {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+      toast('🎨 Image téléchargée !');
+    } catch(e) {
+      // Dernier recours : ouvrir dans nouvel onglet
+      var url2 = URL.createObjectURL(blob);
+      window.open(url2, '_blank');
+      toast('🎨 Image générée — sauvegarde manuelle');
+    }
   }
 
   // Charger la photo si disponible
