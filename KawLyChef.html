@@ -533,6 +533,11 @@ textarea.einp{min-height:62px;resize:vertical;}
 <div id="toast"></div>
 </div><script>
 // ═══════════════════════════════════════════════════
+// APP URL (GitHub Pages)
+// ═══════════════════════════════════════════════════
+var APP_URL = 'https://enndamlydoube-hash.github.io/Kaw-Ly-Chef/KawLyChef.html';
+
+// ═══════════════════════════════════════════════════
 // PIN ACCESS — Code : 2605  (26 = jour, 05 = mois Ndefowo !)
 // ═══════════════════════════════════════════════════
 var PIN_CODE = '2605';
@@ -703,31 +708,38 @@ function signInGoogle(){
 }
 
 function enterLocalMode(){
-  // Try anonymous Firebase auth so Storage/Firestore work with PIN too
-  if(fbReady && firebase.auth){
+  // Use a FIXED shared user ID for PIN access
+  // This ensures ALL devices (phone, PC, iPad) share the same cloud data with PIN
+  var FIXED_PIN_UID = 'kawly-chef-pin-user-2605';
+  
+  if(fbReady && firebase.auth && window.location.protocol !== 'file:' && window.location.protocol !== 'content:'){
+    // On GitHub Pages (https) — use anonymous auth + fixed UID mapping
     firebase.auth().signInAnonymously().then(function(result){
       curUser = result.user;
+      // Override uid with fixed shared uid so all devices sync together
+      curUser._persistUid = FIXED_PIN_UID;
+      localStorage.setItem('klc_uid', FIXED_PIN_UID);
       curUser.displayName = 'Kaw Ly Chef';
       document.getElementById('unm').textContent = 'Kaw Ly Chef 👨‍🍳';
-      document.getElementById('sync-st').textContent = '☁️ Cloud activé !';
+      document.getElementById('sync-st').textContent = '☁️ Connexion cloud...';
       loadFromCloud();
-    }).catch(function(){
-      // Fallback to pure local if anonymous auth fails
-      curUser = null;
-      loadOffline();
-      counts();
-      rl();
-      document.getElementById('unm').textContent = 'Kaw Ly (local)';
-      document.getElementById('sync-st').textContent = '📴 Mode local';
-      showScreen('home');
+    }).catch(function(e){
+      console.log('Anonymous auth failed:', e);
+      // Still try with fixed uid
+      curUser = { _persistUid: FIXED_PIN_UID, uid: FIXED_PIN_UID, isAnonymous: true };
+      localStorage.setItem('klc_uid', FIXED_PIN_UID);
+      document.getElementById('unm').textContent = 'Kaw Ly Chef 👨‍🍳';
+      document.getElementById('sync-st').textContent = '☁️ Connexion...';
+      loadFromCloud();
     });
   } else {
+    // Local file mode — offline only
     curUser = null;
     loadOffline();
     counts();
     rl();
-    document.getElementById('unm').textContent = 'Kaw Ly (local)';
-    document.getElementById('sync-st').textContent = '📴 Mode local';
+    document.getElementById('unm').textContent = 'Kaw Ly Chef 👨‍🍳';
+    document.getElementById('sync-st').textContent = '📴 Ouvrez le lien GitHub pour le cloud';
     showScreen('home');
   }
 }
@@ -756,12 +768,7 @@ function saveOffline(){
 function loadFromCloud(){
   if(!curUser||!fbReady||!db){loadOffline();counts();rl();showScreen('home');return;}
   // For anonymous users, use a persistent local ID so data survives re-auth
-  var uid = curUser.uid;
-  if(curUser.isAnonymous){
-    var savedUid = localStorage.getItem('klc_uid');
-    if(!savedUid){ localStorage.setItem('klc_uid', uid); savedUid = uid; }
-    uid = savedUid;
-  }
+  var uid = curUser._persistUid || localStorage.getItem('klc_uid') || curUser.uid;
   curUser._persistUid = uid;
   setSyncSt('☁️ Chargement...');
   db.collection('users').doc(uid).collection('recipes').get()
@@ -813,10 +820,19 @@ function saveToCloud(){
 }
 
 function syncNow(){
-  if(!curUser||window.location.protocol==='file:'||window.location.protocol==='content:'){
-    saveOffline();setSyncSt('💾 Sauvegardé localement');return;
+  if(window.location.protocol==='file:'||window.location.protocol==='content:'){
+    setSyncSt('⚠️ Ouvrez le lien GitHub Pages pour synchro !');
+    toast('👉 Utilisez : enndamlydoube-hash.github.io/Kaw-Ly-Chef/KawLyChef.html');
+    return;
   }
-  setSyncSt('☁️ Sync...');loadFromCloud();
+  if(!curUser){
+    enterLocalMode();
+    return;
+  }
+  setSyncSt('☁️ Synchronisation en cours...');
+  saveToCloud().then(function(){
+    loadFromCloud();
+  });
 }
 
 function compressImage(dataUrl, maxW, quality, cb){
@@ -1137,6 +1153,13 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
 // START
 // ═══════════════════════════════════════════════════
 window.addEventListener('load',function(){
+  // If opened as local file, show warning
+  if(window.location.protocol==='file:'||window.location.protocol==='content:'){
+    setTimeout(function(){
+      var msg = document.getElementById('login-msg');
+      if(msg) msg.innerHTML = '⚠️ Fichier local détecté<br/><strong style="color:var(--gold)">Pour la synchronisation, ouvrez :</strong><br/><a href="'+APP_URL+'" style="color:var(--gl);font-size:11px;word-break:break-all;">'+APP_URL+'</a>';
+    }, 500);
+  }
   initFirebase();
 });
 </script>
