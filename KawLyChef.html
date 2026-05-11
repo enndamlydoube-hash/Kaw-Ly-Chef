@@ -442,33 +442,57 @@ textarea.einp{min-height:62px;resize:vertical;}
 
 <!-- ══ DETAIL ══ -->
 <div id="screen-detail" class="screen hidden">
-  <div class="topbar">
+  <!-- Topbar sticky -->
+  <div style="position:sticky;top:0;z-index:10;background:rgba(7,24,69,.97);
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;border-bottom:1px solid rgba(212,175,55,.2);">
     <button class="back-btn" onclick="goList()">← Retour</button>
-    <span class="scr-title"></span>
-    <div class="lang-tog"><button class="lang-btn active" onclick="setLang('FR')">FR</button><button class="lang-btn" onclick="setLang('PU')">PU</button></div>
-  </div>
-  <div class="gal-wrap">
-    <div class="gal-main" id="gm">
-      <div class="gal-empty" id="ge" onclick="showPhotoChoice()">
-        <span class="ic">📷</span><div class="t1">AJOUTER DES PHOTOS</div>
-        <div class="t2">Caméra ou Galerie ☁️</div>
-      </div>
-      <img class="gal-big" id="gi" src="" alt="" style="display:none"/>
-      <button class="garr gl" id="gp" style="display:none" onclick="gNav(-1)">‹</button>
-      <button class="garr gr" id="gn" style="display:none" onclick="gNav(1)">›</button>
-      <div class="gcnt" id="gc" style="display:none"></div>
-      <button class="gdel" id="gd" style="display:none" onclick="delPh()">🗑</button>
+    <span style="flex:1"></span>
+    <div class="lang-tog">
+      <button class="lang-btn active" onclick="setLang('FR')">FR</button>
+      <button class="lang-btn" onclick="setLang('PU')">PU</button>
     </div>
-    <div class="gstrip" id="gs"></div>
   </div>
-  <div class="rec-hdr">
-    <div style="flex:1"><h2 class="rec-title" id="dtitle"></h2><p class="rec-time" id="dtime"></p></div>
+  <!-- Photo principale -->
+  <div id="gm" style="margin:12px 14px 0;position:relative;height:220px;border-radius:16px;
+    overflow:hidden;background:rgba(212,175,55,.04);border:2px solid rgba(212,175,55,.25);">
+    <div id="ge" onclick="showPhotoChoice()" style="height:100%;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;color:#D4AF37;cursor:pointer;">
+      <span style="font-size:40px;margin-bottom:8px;">📷</span>
+      <div style="font-size:13px;font-weight:700;letter-spacing:2px;">AJOUTER DES PHOTOS</div>
+      <div style="font-size:10px;color:#A07820;margin-top:4px;font-style:italic;">Caméra ou Galerie ☁️</div>
+    </div>
+    <img id="gi" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;cursor:pointer;"/>
+    <button id="gp" onclick="gNav(-1)" style="display:none;position:absolute;left:8px;top:50%;
+      transform:translateY(-50%);background:rgba(0,0,0,.5);border:1px solid rgba(212,175,55,.5);
+      color:#D4AF37;border-radius:50%;width:36px;height:36px;font-size:20px;cursor:pointer;z-index:3;">‹</button>
+    <button id="gn" onclick="gNav(1)" style="display:none;position:absolute;right:8px;top:50%;
+      transform:translateY(-50%);background:rgba(0,0,0,.5);border:1px solid rgba(212,175,55,.5);
+      color:#D4AF37;border-radius:50%;width:36px;height:36px;font-size:20px;cursor:pointer;z-index:3;">›</button>
+    <div id="gc" style="display:none;position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+      background:rgba(0,0,0,.6);border:1px solid rgba(212,175,55,.4);color:#D4AF37;
+      border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;z-index:3;"></div>
+    <button id="gd" onclick="delPh()" style="display:none;position:absolute;top:8px;right:8px;
+      background:rgba(200,50,50,.75);border:none;color:#fff;border-radius:50%;
+      width:30px;height:30px;font-size:15px;cursor:pointer;z-index:3;">🗑</button>
+  </div>
+  <!-- Strip miniatures -->
+  <div id="gs" style="display:flex;gap:8px;overflow-x:auto;padding:8px 14px 4px;scrollbar-width:none;"></div>
+  <!-- Titre + modifier -->
+  <div style="padding:8px 14px 10px;display:flex;justify-content:space-between;align-items:flex-start;">
+    <div style="flex:1;min-width:0;">
+      <h2 id="dtitle" style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;
+        color:#D4AF37;margin:0 0 3px;line-height:1.3;"></h2>
+      <p id="dtime" style="font-size:12px;color:#A07820;font-style:italic;"></p>
+    </div>
     <button class="edit-btn" onclick="openEdit()">✏️</button>
   </div>
+  <!-- Sections -->
   <div class="sec"><div class="sec-title" id="ing-lbl">🧂 INGRÉDIENTS</div><div id="ing-list"></div></div>
   <div class="sec" id="steps-sec"><div class="sec-title" id="stp-lbl">👨‍🍳 PRÉPARATION</div><div id="stp-list"></div></div>
   <div id="notes-sec" style="display:none"><div class="sec"><div class="sec-title">📝 NOTES</div><div class="note-box"><p class="note-txt" id="ntxt"></p></div></div></div>
-  <div class="share-row">
+  <!-- Boutons partage -->
+  <div style="display:flex;gap:9px;margin:0 14px 10px;">
     <button class="share-btn" onclick="shareR('FR')">📤 Partager FR</button>
     <button class="share-btn" onclick="shareR('PU')">📤 Waddo PU</button>
   </div>
@@ -564,7 +588,7 @@ textarea.einp{min-height:62px;resize:vertical;}
     <button onclick="hidePhotoChoice()" style="width:100%;background:rgba(200,50,50,.15);border:1px solid rgba(200,50,50,.3);border-radius:12px;padding:12px;color:#ff9090;font-size:14px;cursor:pointer;font-family:inherit;">Annuler</button>
   </div>
 </div>
-<canvas id="gen-cv" style="display:none;position:fixed;left:-9999px;top:-9999px;width:0;height:0;visibility:hidden;pointer-events:none;"></canvas>
+<canvas id="gen-cv" style="position:fixed;left:-9999px;top:-9999px;visibility:hidden;pointer-events:none;"></canvas>
 <!-- Camera: direct photo -->
 <input type="file" id="ph-camera" accept="image/*" capture="environment" style="display:none" onchange="handlePh(event)"/>
 <!-- Gallery: choose existing -->
