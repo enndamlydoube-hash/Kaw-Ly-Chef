@@ -15,11 +15,12 @@
 <style>
 :root{--sap:#071845;--sap2:#0a2060;--sap3:#0d2878;--gold:#D4AF37;--gl:#FFE082;--gm:#C8A84B;--gd:#A07820;--cream:#F5E6B0;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html,body{height:100%;overflow:hidden;}
+html,body{height:100%;width:100%;overflow:hidden;max-width:100%;}
 body{font-family:"Cormorant Garamond","Palatino Linotype",serif;
-  background:#071845;color:var(--cream);height:100%;}
-#app{height:100%;overflow:hidden;position:relative;}
-.screen{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;
+  background:#071845;color:var(--cream);height:100%;width:100%;}
+#app{height:100%;width:100%;max-width:100%;overflow:hidden;position:relative;}
+.screen{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;max-width:100%;
+  overflow-y:auto;overflow-x:hidden;
   transition:transform .3s ease,opacity .3s;padding-bottom:50px;}
 .screen.hidden{transform:translateX(100%);opacity:0;pointer-events:none;}
 .divider{margin:16px auto;width:200px;height:1px;
@@ -130,9 +131,10 @@ body{font-family:"Cormorant Garamond","Palatino Linotype",serif;
 .add-btn:active{background:rgba(212,175,55,.15);}
 
 /* ══ GALLERY ══ */
-.gal-wrap{margin:0 14px 12px;}
+.gal-wrap{margin:0 14px 12px;box-sizing:border-box;width:calc(100% - 28px);}
 .gal-main{position:relative;height:220px;border-radius:16px;overflow:hidden;
-  background:rgba(212,175,55,.04);border:2px solid rgba(212,175,55,.25);}
+  background:rgba(212,175,55,.04);border:2px solid rgba(212,175,55,.25);
+  width:100%;box-sizing:border-box;}
 .gal-main img.gal-big{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;}
 .gal-empty{height:100%;display:flex;flex-direction:column;align-items:center;
   justify-content:center;color:var(--gold);cursor:pointer;}
@@ -150,7 +152,8 @@ body{font-family:"Cormorant Garamond","Palatino Linotype",serif;
 .gdel{position:absolute;top:8px;right:8px;background:rgba(200,50,50,.75);border:none;
   color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;
   justify-content:center;cursor:pointer;font-size:15px;z-index:3;}
-.gstrip{display:flex;gap:8px;overflow-x:auto;padding:8px 0 2px;scrollbar-width:none;}
+.gstrip{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;
+  padding:8px 0 2px;scrollbar-width:none;width:100%;box-sizing:border-box;}
 .gstrip::-webkit-scrollbar{display:none;}
 .gthumb{width:58px;height:58px;border-radius:10px;flex-shrink:0;overflow:hidden;
   border:2px solid rgba(212,175,55,.25);cursor:pointer;}
@@ -163,6 +166,15 @@ body{font-family:"Cormorant Garamond","Palatino Linotype",serif;
 .gadd span{font-size:20px;line-height:1;}
 .gadd small{font-size:8px;font-weight:700;letter-spacing:1px;}
 
+/* ══ DETAIL SCREEN — forcer pleine largeur sans débordement ══ */
+#screen-detail{width:100% !important;max-width:100% !important;
+  overflow-x:hidden !important;box-sizing:border-box;}
+#screen-detail *{max-width:100%;box-sizing:border-box;}
+#screen-detail .gal-wrap,
+#screen-detail .rec-hdr,
+#screen-detail .sec,
+#screen-detail .share-row,
+#screen-detail .gen-btn{width:calc(100% - 28px) !important;margin-left:14px !important;margin-right:14px !important;}
 /* ══ DETAIL ══ */
 .rec-hdr{padding:0 14px 10px;display:flex;justify-content:space-between;align-items:flex-start;}
 .rec-title{font-family:"Playfair Display",serif;font-size:21px;font-weight:700;
@@ -1088,43 +1100,158 @@ function genImg(){
   var ings=lang==='FR'?r.ingredientsFR:r.ingredientsPU;
   var steps=lang==='FR'?r.stepsFR:r.stepsPU;
   var time=lang==='FR'?r.timeFR:r.timePU;
-  function draw(photoUrl){
+
+  function drawFrame(ctx,W,H){
+    // Fond dégradé bleu marine
     var bg=ctx.createLinearGradient(0,0,0,H);
     bg.addColorStop(0,'#071845');bg.addColorStop(.5,'#0a2060');bg.addColorStop(1,'#071845');
     ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-    // Borders
-    ctx.strokeStyle='#D4AF37';ctx.lineWidth=6;ctx.strokeRect(18,18,W-36,H-36);
-    ctx.lineWidth=2;ctx.globalAlpha=.4;ctx.strokeRect(30,30,W-60,H-60);ctx.globalAlpha=1;
-    // Corner diamonds
-    [[60,60],[W-60,60],[60,H-60],[W-60,H-60]].forEach(function(c){
+    // Bordure dorée épaisse
+    ctx.strokeStyle='#D4AF37';ctx.lineWidth=8;ctx.strokeRect(20,20,W-40,H-40);
+    // Bordure intérieure fine
+    ctx.lineWidth=2;ctx.globalAlpha=.5;ctx.strokeRect(34,34,W-68,H-68);ctx.globalAlpha=1;
+    // Coins diamants dorés
+    [[70,70],[W-70,70],[70,H-70],[W-70,H-70]].forEach(function(c){
       ctx.save();ctx.translate(c[0],c[1]);ctx.rotate(Math.PI/4);
-      ctx.strokeStyle='#D4AF37';ctx.lineWidth=2.5;ctx.globalAlpha=.8;
-      ctx.strokeRect(-14,-14,28,28);ctx.restore();ctx.globalAlpha=1;
+      ctx.strokeStyle='#D4AF37';ctx.lineWidth=3;ctx.globalAlpha=.9;
+      ctx.strokeRect(-16,-16,32,32);
+      ctx.globalAlpha=.3;ctx.strokeRect(-22,-22,44,44);
+      ctx.restore();ctx.globalAlpha=1;
     });
-    // Gold horizontal lines
+  }
+
+  function drawDivider(ctx,W,y){
+    var dg=ctx.createLinearGradient(80,0,W-80,0);
+    dg.addColorStop(0,'transparent');dg.addColorStop(.3,'#D4AF37');
+    dg.addColorStop(.5,'#FFE082');dg.addColorStop(.7,'#D4AF37');dg.addColorStop(1,'transparent');
+    ctx.strokeStyle=dg;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(80,y);ctx.lineTo(W-80,y);ctx.stroke();
+    // Petit losange au centre
+    ctx.save();ctx.translate(W/2,y);ctx.rotate(Math.PI/4);
+    ctx.strokeStyle='#D4AF37';ctx.lineWidth=2;ctx.strokeRect(-7,-7,14,14);
+    ctx.restore();
+  }
+
+  function drawPhotoRounded(ctx,img,x,y,w,h,rad){
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x+rad,y);ctx.lineTo(x+w-rad,y);ctx.arcTo(x+w,y,x+w,y+rad,rad);
+    ctx.lineTo(x+w,y+h-rad);ctx.arcTo(x+w,y+h,x+w-rad,y+h,rad);
+    ctx.lineTo(x+rad,y+h);ctx.arcTo(x,y+h,x,y+h-rad,rad);
+    ctx.lineTo(x,y+rad);ctx.arcTo(x,y,x+rad,y,rad);ctx.closePath();
+    // Ombre douce
+    ctx.shadowColor='rgba(0,0,0,0.6)';ctx.shadowBlur=20;
+    ctx.fillStyle='#000';ctx.fill();ctx.shadowBlur=0;
+    ctx.clip();
+    // Centrer/recadrer l'image (cover)
+    var scale=Math.max(w/img.naturalWidth,h/img.naturalHeight);
+    var sw=img.naturalWidth*scale,sh=img.naturalHeight*scale;
+    ctx.drawImage(img,x+(w-sw)/2,y+(h-sh)/2,sw,sh);
+    ctx.restore();
+    // Bordure dorée autour de la photo
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x+rad,y);ctx.lineTo(x+w-rad,y);ctx.arcTo(x+w,y,x+w,y+rad,rad);
+    ctx.lineTo(x+w,y+h-rad);ctx.arcTo(x+w,y+h,x+w-rad,y+h,rad);
+    ctx.lineTo(x+rad,y+h);ctx.arcTo(x,y+h,x,y+h-rad,rad);
+    ctx.lineTo(x,y+rad);ctx.arcTo(x,y,x+rad,y,rad);ctx.closePath();
+    ctx.strokeStyle='#D4AF37';ctx.lineWidth=5;ctx.stroke();
+    ctx.restore();
+  }
+
+  function renderAll(photoImg){
+    drawFrame(ctx,W,H);
     var dg=ctx.createLinearGradient(80,0,W-80,0);
     dg.addColorStop(0,'transparent');dg.addColorStop(.5,'#D4AF37');dg.addColorStop(1,'transparent');
-    var y=80;
-    if(photoUrl){
-      var pi=new Image();pi.crossOrigin='anonymous';
-      pi.onload=function(){
-        ctx.save();
-        ctx.beginPath();
-        var rx=60,ry=80,rw=W-120,rh=500,rad=20;
-        ctx.moveTo(rx+rad,ry);ctx.lineTo(rx+rw-rad,ry);ctx.arcTo(rx+rw,ry,rx+rw,ry+rad,rad);
-        ctx.lineTo(rx+rw,ry+rh-rad);ctx.arcTo(rx+rw,ry+rh,rx+rw-rad,ry+rh,rad);
-        ctx.lineTo(rx+rad,ry+rh);ctx.arcTo(rx,ry+rh,rx,ry+rh-rad,rad);
-        ctx.lineTo(rx,ry+rad);ctx.arcTo(rx,ry,rx+rad,ry,rad);ctx.closePath();
-        ctx.clip();ctx.drawImage(pi,60,80,W-120,500);ctx.restore();
-        ctx.strokeStyle='#D4AF37';ctx.lineWidth=4;
-        ctx.beginPath();ctx.moveTo(rx+rad,ry);ctx.lineTo(rx+rw-rad,ry);ctx.arcTo(rx+rw,ry,rx+rw,ry+rad,rad);ctx.lineTo(rx+rw,ry+rh-rad);ctx.arcTo(rx+rw,ry+rh,rx+rw-rad,ry+rh,rad);ctx.lineTo(rx+rad,ry+rh);ctx.arcTo(rx,ry+rh,rx,ry+rh-rad,rad);ctx.lineTo(rx,ry+rad);ctx.arcTo(rx,ry,rx+rad,ry,rad);ctx.closePath();ctx.stroke();
-        drawTxt(ctx,W,H,title,time,ings,steps,620,dg);
-      };
-      pi.onerror=function(){drawTxt(ctx,W,H,title,time,ings,steps,y,dg);};
-      pi.src=photoUrl;
-    }else{drawTxt(ctx,W,H,title,time,ings,steps,y,dg);}
+    var pad=80,y=70;
+
+    if(photoImg){
+      // Photo avec bordure dorée arrondie
+      drawPhotoRounded(ctx,photoImg,60,y,W-120,480,24);
+      y+=520;
+    }
+
+    // Titre
+    ctx.fillStyle='#FFE082';
+    ctx.font='bold 68px Georgia,serif';
+    ctx.textAlign='center';
+    var nl=wrapT(ctx,title,W/2,y,W-2*pad,80);y+=nl*80+20;
+
+    // Temps
+    if(time){
+      ctx.fillStyle='#C8A84B';ctx.font='italic 38px Georgia,serif';
+      ctx.fillText('⏱ '+time,W/2,y);y+=55;
+    }
+
+    drawDivider(ctx,W,y);y+=50;
+
+    // Ingrédients
+    ctx.fillStyle='#D4AF37';ctx.font='bold 46px Georgia,serif';ctx.textAlign='left';
+    ctx.fillText(lang==='FR'?'🧂  INGRÉDIENTS':'🧂  KANNJE',pad,y);y+=60;
+    ctx.fillStyle='#F5E6B0';ctx.font='36px Georgia,serif';
+    (ings||[]).forEach(function(i){
+      var n=wrapT(ctx,'• '+i,pad+10,y,W-2*pad-10,48);y+=n*48+8;
+    });
+
+    y+=20;drawDivider(ctx,W,y);y+=50;
+
+    // Préparation
+    ctx.fillStyle='#D4AF37';ctx.font='bold 46px Georgia,serif';
+    ctx.fillText(lang==='FR'?'👨‍🍳  PRÉPARATION':'👨‍🍳  PEWJE',pad,y);y+=60;
+    ctx.fillStyle='#F5E6B0';ctx.font='34px Georgia,serif';
+    (steps||[]).forEach(function(s,i){
+      // Numéro dans cercle doré
+      ctx.beginPath();ctx.arc(pad+20,y-10,22,0,Math.PI*2);
+      ctx.fillStyle='rgba(212,175,55,0.25)';ctx.fill();
+      ctx.strokeStyle='#D4AF37';ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle='#FFE082';ctx.font='bold 28px Georgia,serif';
+      ctx.textAlign='center';ctx.fillText(i+1,pad+20,y+2);
+      ctx.textAlign='left';ctx.fillStyle='#F5E6B0';ctx.font='34px Georgia,serif';
+      var n=wrapT(ctx,s,pad+52,y,W-pad-70,46);y+=n*46+14;
+    });
+
+    // Signature bas
+    var sy=H-160;
+    drawDivider(ctx,W,sy);sy+=60;
+    ctx.fillStyle='#D4AF37';ctx.font='bold 52px Georgia,serif';ctx.textAlign='center';
+    ctx.fillText('✦  KAW LY CHEF  ✦',W/2,sy);sy+=55;
+    ctx.fillStyle='#A07820';ctx.font='italic 34px Georgia,serif';
+    ctx.fillText('Ndefowo — Fouta',W/2,sy);
+
+    // Télécharger
+    setTimeout(function(){
+      var a=document.createElement('a');
+      a.href=cv.toDataURL('image/jpeg',.93);
+      a.download='KawLyChef_'+title.replace(/\s+/g,'_').substring(0,20)+'.jpg';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      toast('🎨 Image générée !');
+    },200);
   }
-  draw(r.photos&&r.photos.length?r.photos[0]:null);
+
+  // Charger la photo si disponible
+  var photoUrl=r.photos&&r.photos.length?r.photos[0]:null;
+  if(photoUrl){
+    // Essai 1 : image depuis le DOM (déjà chargée, pas de CORS)
+    var domImg=document.getElementById('gi');
+    if(domImg&&domImg.src&&!domImg.src.endsWith('#')&&domImg.complete&&domImg.naturalWidth>0){
+      renderAll(domImg);
+    } else {
+      // Essai 2 : charger avec crossOrigin
+      var pi=new Image();
+      pi.crossOrigin='anonymous';
+      pi.onload=function(){ renderAll(pi); };
+      pi.onerror=function(){
+        // Essai 3 : sans crossOrigin (peut bloquer toDataURL mais tente)
+        var pi2=new Image();
+        pi2.onload=function(){ try{ renderAll(pi2); }catch(e){ renderAll(null); } };
+        pi2.onerror=function(){ renderAll(null); };
+        pi2.src=photoUrl+'?t='+Date.now();
+      };
+      pi.src=photoUrl;
+    }
+  } else {
+    renderAll(null);
+  }
 }
 function drawTxt(ctx,W,H,title,time,ings,steps,y,dg){
   var pad=80;y+=60;
