@@ -790,8 +790,10 @@ function saveOffline(){
 
 function loadFromCloud(){
   if(!curUser||!fbReady||!db){loadOffline();counts();rl();showScreen('home');return Promise.resolve();}
-  var uid = curUser._persistUid || localStorage.getItem('klc_uid') || curUser.uid;
-  curUser._persistUid = uid;
+  // TOUJOURS utiliser l'UID fixe partagé — même données sur tous les appareils
+  var uid = 'kawly-chef-shared-2605';
+  if(curUser) curUser._persistUid = uid;
+  localStorage.setItem('klc_uid', uid);
   setSyncSt('☁️ Chargement...');
   return db.collection('users').doc(uid).collection('recipes').get()
     .then(function(snap){
@@ -820,23 +822,24 @@ function loadFromCloud(){
 
 function saveToCloud(){
   saveOffline();
-  if(!curUser||!fbReady||!db||typeof firebase==='undefined') return Promise.resolve();
+  if(!fbReady||!db||typeof firebase==='undefined') return Promise.resolve();
+  var FIXED_UID = 'kawly-chef-shared-2605';
   var batch=[];
   Object.keys(R).forEach(function(cat){
     R[cat].forEach(function(r){
-      // Only save http URLs in Firestore (not base64 — too large)
       var rClean = JSON.parse(JSON.stringify(r));
+      // Garder TOUTES les URLs Firebase Storage (http) + supprimer base64
       rClean.photos = (r.photos||[]).filter(function(p){
         return p && (p.startsWith('http') || p.startsWith('https'));
       });
       batch.push(
-        db.collection('users').doc(curUser._persistUid||curUser.uid)
+        db.collection('users').doc(FIXED_UID)
           .collection('recipes').doc(r.id).set(rClean)
       );
     });
   });
   return Promise.all(batch)
-    .then(function(){ setSyncSt('✅ Synchronisé — ' + new Date().toLocaleTimeString()); })
+    .then(function(){ setSyncSt('🟢 LIVE ● — ' + new Date().toLocaleTimeString()); })
     .catch(function(e){ console.error('Sync error:',e); setSyncSt('⚠️ Erreur sync: ' + e.message); });
 }
 
@@ -871,22 +874,23 @@ function compressImage(dataUrl, maxW, quality, cb){
 
 function uploadPhoto(recipeId, idx, dataUrl){
   return new Promise(function(resolve){
-    // Compress first to max 800px wide, quality 0.75
     compressImage(dataUrl, 800, 0.75, function(compressed){
-      if(!curUser || !fbReady || !storage){
+      if(!fbReady || !storage){
         resolve(compressed);
         return;
       }
-      var path = 'photos/' + (curUser._persistUid||curUser.uid) + '/' + recipeId + '_' + idx + '_' + Date.now() + '.jpg';
+      // Toujours utiliser le dossier partagé fixe = photos visibles sur tous les appareils
+      var FIXED_UID = 'kawly-chef-shared-2605';
+      var path = 'photos/' + FIXED_UID + '/' + recipeId + '_' + idx + '_' + Date.now() + '.jpg';
       var ref = storage.ref(path);
       ref.putString(compressed, 'data_url')
         .then(function(){ return ref.getDownloadURL(); })
         .then(function(url){
-          resolve(url); // Return Firebase Storage URL (permanent, shared across devices)
+          resolve(url); // URL permanente Firebase Storage — visible partout
         })
         .catch(function(err){
-          console.error('Upload error:', err);
-          resolve(compressed); // Fallback to local compressed
+          console.error('Upload photo error:', err);
+          resolve(compressed); // Fallback base64 local
         });
     });
   });
@@ -1254,8 +1258,8 @@ function exportExcel(){
 var _unsubscribe = null; // Firestore real-time listener
 
 function startRealtimeSync(){
-  if(!curUser||!fbReady||!db||typeof firebase==='undefined') return;
-  var uid = curUser._persistUid || localStorage.getItem('klc_uid') || curUser.uid;
+  if(!fbReady||!db||typeof firebase==='undefined') return;
+  var uid = 'kawly-chef-shared-2605'; // UID fixe partagé — même données sur tous les appareils
   // Unsubscribe previous listener
   if(_unsubscribe){ _unsubscribe(); _unsubscribe=null; }
   // Listen for real-time changes
