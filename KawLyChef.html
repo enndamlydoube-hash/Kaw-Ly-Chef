@@ -703,15 +703,33 @@ function signInGoogle(){
 }
 
 function enterLocalMode(){
-  // Works fully offline with localStorage
-  curUser=null;
-  loadOffline();
-  counts();
-  rl();
-  // Update user bar for local mode
-  document.getElementById('unm').textContent='Kaw Ly (local)';
-  document.getElementById('sync-st').textContent='📴 Mode local — hébergez sur GitHub pour le cloud';
-  showScreen('home');
+  // Try anonymous Firebase auth so Storage/Firestore work with PIN too
+  if(fbReady && firebase.auth){
+    firebase.auth().signInAnonymously().then(function(result){
+      curUser = result.user;
+      curUser.displayName = 'Kaw Ly Chef';
+      document.getElementById('unm').textContent = 'Kaw Ly Chef 👨‍🍳';
+      document.getElementById('sync-st').textContent = '☁️ Cloud activé !';
+      loadFromCloud();
+    }).catch(function(){
+      // Fallback to pure local if anonymous auth fails
+      curUser = null;
+      loadOffline();
+      counts();
+      rl();
+      document.getElementById('unm').textContent = 'Kaw Ly (local)';
+      document.getElementById('sync-st').textContent = '📴 Mode local';
+      showScreen('home');
+    });
+  } else {
+    curUser = null;
+    loadOffline();
+    counts();
+    rl();
+    document.getElementById('unm').textContent = 'Kaw Ly (local)';
+    document.getElementById('sync-st').textContent = '📴 Mode local';
+    showScreen('home');
+  }
 }
 
 function doLogout(){
@@ -736,9 +754,17 @@ function saveOffline(){
 }
 
 function loadFromCloud(){
-  if(!curUser||!fbReady){loadOffline();counts();rl();return;}
+  if(!curUser||!fbReady||!db){loadOffline();counts();rl();showScreen('home');return;}
+  // For anonymous users, use a persistent local ID so data survives re-auth
+  var uid = curUser.uid;
+  if(curUser.isAnonymous){
+    var savedUid = localStorage.getItem('klc_uid');
+    if(!savedUid){ localStorage.setItem('klc_uid', uid); savedUid = uid; }
+    uid = savedUid;
+  }
+  curUser._persistUid = uid;
   setSyncSt('☁️ Chargement...');
-  db.collection('users').doc(curUser.uid).collection('recipes').get()
+  db.collection('users').doc(uid).collection('recipes').get()
     .then(function(snap){
       if(snap.empty){
         R=JSON.parse(JSON.stringify(DEFAULTS));
@@ -750,9 +776,13 @@ function loadFromCloud(){
         if(r.category&&R[r.category]) R[r.category].push(r);
       });
       Object.keys(R).forEach(function(c){R[c].sort(function(a,b){return a.id<b.id?-1:1;});});
-      setSyncSt('✅ Synchronisé — '+new Date().toLocaleTimeString());
+      setSyncSt('✅ Synchronisé ☁️ — '+new Date().toLocaleTimeString());
       saveOffline();
-      counts();rl();showScreen('home');
+      counts();rl();
+      // Only navigate to home if we're still on login screen
+      var vis=null;
+      document.querySelectorAll('.screen').forEach(function(s){if(!s.classList.contains('hidden'))vis=s.id;});
+      if(vis==='screen-login'||!vis) showScreen('home');
     })
     .catch(function(e){
       setSyncSt('📴 Mode hors ligne');
@@ -762,16 +792,24 @@ function loadFromCloud(){
 
 function saveToCloud(){
   saveOffline();
-  if(!curUser||!fbReady) return Promise.resolve();
+  if(!curUser||!fbReady||!db) return Promise.resolve();
   var batch=[];
   Object.keys(R).forEach(function(cat){
     R[cat].forEach(function(r){
-      batch.push(db.collection('users').doc(curUser.uid).collection('recipes').doc(r.id).set(r));
+      // Only save http URLs in Firestore (not base64 — too large)
+      var rClean = JSON.parse(JSON.stringify(r));
+      rClean.photos = (r.photos||[]).filter(function(p){
+        return p && (p.startsWith('http') || p.startsWith('https'));
+      });
+      batch.push(
+        db.collection('users').doc(curUser._persistUid||curUser.uid)
+          .collection('recipes').doc(r.id).set(rClean)
+      );
     });
   });
   return Promise.all(batch)
-    .then(function(){setSyncSt('✅ Sauvegardé — '+new Date().toLocaleTimeString());})
-    .catch(function(e){setSyncSt('⚠️ Erreur sync');});
+    .then(function(){ setSyncSt('✅ Synchronisé — ' + new Date().toLocaleTimeString()); })
+    .catch(function(e){ console.error('Sync error:',e); setSyncSt('⚠️ Erreur sync: ' + e.message); });
 }
 
 function syncNow(){
@@ -781,13 +819,40 @@ function syncNow(){
   setSyncSt('☁️ Sync...');loadFromCloud();
 }
 
+function compressImage(dataUrl, maxW, quality, cb){
+  var img = new Image();
+  img.onload = function(){
+    var w = img.width, h = img.height;
+    if(w > maxW){ h = Math.round(h * maxW / w); w = maxW; }
+    var cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    cv.getContext('2d').drawImage(img, 0, 0, w, h);
+    cb(cv.toDataURL('image/jpeg', quality));
+  };
+  img.src = dataUrl;
+}
+
 function uploadPhoto(recipeId, idx, dataUrl){
-  if(!curUser||!fbReady||!storage) return Promise.resolve(dataUrl);
-  var path='users/'+curUser.uid+'/photos/'+recipeId+'_'+idx+'_'+Date.now()+'.jpg';
-  var ref=storage.ref(path);
-  return ref.putString(dataUrl,'data_url')
-    .then(function(){return ref.getDownloadURL();})
-    .catch(function(){return dataUrl;}); // fallback to dataUrl if storage fails
+  return new Promise(function(resolve){
+    // Compress first to max 800px wide, quality 0.75
+    compressImage(dataUrl, 800, 0.75, function(compressed){
+      if(!curUser || !fbReady || !storage){
+        resolve(compressed);
+        return;
+      }
+      var path = 'photos/' + (curUser._persistUid||curUser.uid) + '/' + recipeId + '_' + idx + '_' + Date.now() + '.jpg';
+      var ref = storage.ref(path);
+      ref.putString(compressed, 'data_url')
+        .then(function(){ return ref.getDownloadURL(); })
+        .then(function(url){
+          resolve(url); // Return Firebase Storage URL (permanent, shared across devices)
+        })
+        .catch(function(err){
+          console.error('Upload error:', err);
+          resolve(compressed); // Fallback to local compressed
+        });
+    });
+  });
 }
 
 // ═══════════════════════════════════════════════════
@@ -909,7 +974,7 @@ function handlePh(e){
         if(done===total){
           gIdx=r.photos.length-1;
           saveToCloud();renderGal(r);rl();
-          toast('☁️ '+total+(total>1?' photos sauvegardées!':' photo sauvegardée!'));
+          toast('☁️ '+total+(total>1?' photos sauvegardées dans le cloud!':' photo sauvegardée dans le cloud!')); setSyncSt('✅ Photos sync — '+new Date().toLocaleTimeString());
         }
       });
     };
