@@ -728,54 +728,43 @@ function signInGoogle(){
 }
 
 function enterLocalMode(){
-  var FIXED_PIN_UID = 'kawly-chef-pin-user-2605';
+  // Compte partagé fixe — même UID sur tous les appareils via email/password
+  var SHARED_EMAIL = 'kawlychef.pin@kaw-ly-chef.com';
+  var SHARED_PASS  = 'KawLyChef2605!';
+  var FIXED_UID    = 'kawly-chef-shared-2605';
 
-  // STEP 1: Load local data and show home IMMEDIATELY (no network needed)
+  // Afficher home immédiatement en mode local
   try { loadOffline(); } catch(e){ R = JSON.parse(JSON.stringify(DEFAULTS)); }
-  counts();
-  try { rl(); } catch(e){}
-  try { document.getElementById('unm').textContent = 'Kaw Ly Chef \u{1F468}\u200D\u{1F373}'; } catch(e){}
+  counts(); try{rl();}catch(e){}
+  try{ document.getElementById('unm').textContent = 'Kaw Ly Chef 👨\u200D🍳'; }catch(e){}
   showScreen('home');
-  setSyncSt('📴 Mode local');
-
-  // STEP 2: Try cloud sync in background ONLY if firebase is available and online
-  if(!fbReady || typeof firebase === 'undefined') return;
-  if(window.location.protocol === 'file:' || window.location.protocol === 'content:') return;
-
   setSyncSt('☁️ Connexion...');
-  try {
-    firebase.auth().signInAnonymously()
-      .then(function(result){
-        curUser = result.user;
-        curUser._persistUid = FIXED_PIN_UID;
-        localStorage.setItem('klc_uid', FIXED_PIN_UID);
-        return db.collection('users').doc(FIXED_PIN_UID).collection('recipes').get();
-      })
-      .then(function(snap){
-        if(snap && !snap.empty){
-          var cloudR={entrees:[],plats:[],desserts:[]};
-          snap.forEach(function(d){
-            var r=d.data();
-            if(r.category && cloudR[r.category]) cloudR[r.category].push(r);
-          });
-          var hasData = Object.keys(cloudR).some(function(c){return cloudR[c].length>0;});
-          if(hasData){
-            R = cloudR;
-            Object.keys(R).forEach(function(c){R[c].sort(function(a,b){return a.id<b.id?-1:1;});});
-            saveOffline(); counts(); rl();
-          }
-        }
-        setSyncSt('✅ Synchronisé ☁️ — '+new Date().toLocaleTimeString());
-        startRealtimeSync();
-      })
-      .catch(function(e){
-        console.log('Cloud sync failed:', e);
-        setSyncSt('📴 Mode local');
-      });
-  } catch(e) {
-    console.log('enterLocalMode cloud error:', e);
-    setSyncSt('📴 Mode local');
+
+  if(!fbReady || typeof firebase==='undefined') { setSyncSt('📴 Mode local'); return; }
+  if(window.location.protocol==='file:'||window.location.protocol==='content:'){
+    setSyncSt('📴 Mode local'); return;
   }
+
+  // Connexion avec compte email/password partagé (même compte = même données partout)
+  firebase.auth().signInWithEmailAndPassword(SHARED_EMAIL, SHARED_PASS)
+    .catch(function(err){
+      if(err.code==='auth/user-not-found'){
+        // Première fois : créer le compte
+        return firebase.auth().createUserWithEmailAndPassword(SHARED_EMAIL, SHARED_PASS);
+      }
+      throw err;
+    })
+    .then(function(result){
+      curUser = result.user;
+      curUser._persistUid = FIXED_UID;
+      localStorage.setItem('klc_uid', FIXED_UID);
+      setSyncSt('✅ Connecté — chargement...');
+      return loadFromCloud();
+    })
+    .catch(function(e){
+      console.log('PIN cloud auth failed:', e);
+      setSyncSt('📴 Mode local');
+    });
 }
 
 function doLogout(){
@@ -804,12 +793,11 @@ function saveOffline(){
 }
 
 function loadFromCloud(){
-  if(!curUser||!fbReady||!db){loadOffline();counts();rl();showScreen('home');return;}
-  // For anonymous users, use a persistent local ID so data survives re-auth
+  if(!curUser||!fbReady||!db){loadOffline();counts();rl();showScreen('home');return Promise.resolve();}
   var uid = curUser._persistUid || localStorage.getItem('klc_uid') || curUser.uid;
   curUser._persistUid = uid;
   setSyncSt('☁️ Chargement...');
-  db.collection('users').doc(uid).collection('recipes').get()
+  return db.collection('users').doc(uid).collection('recipes').get()
     .then(function(snap){
       if(snap.empty){
         R=JSON.parse(JSON.stringify(DEFAULTS));
@@ -821,12 +809,9 @@ function loadFromCloud(){
         if(r.category&&R[r.category]) R[r.category].push(r);
       });
       Object.keys(R).forEach(function(c){R[c].sort(function(a,b){return a.id<b.id?-1:1;});});
-      setSyncSt('✅ Synchronisé ☁️ — '+new Date().toLocaleTimeString());
-      saveOffline();
-      counts();rl();
-      // Start real-time listener
+      setSyncSt('✅ Live ● — '+new Date().toLocaleTimeString());
+      saveOffline(); counts(); rl();
       startRealtimeSync();
-      // Only navigate to home if we're still on login screen
       var vis=null;
       document.querySelectorAll('.screen').forEach(function(s){if(!s.classList.contains('hidden'))vis=s.id;});
       if(vis==='screen-login'||!vis) showScreen('home');
@@ -1304,7 +1289,7 @@ function startRealtimeSync(){
     }, function(err){
       console.log('Realtime sync error:',err);
     });
-  setSyncSt('🔴 Sync en temps réel actif');
+  setSyncSt('🟢 LIVE — Sync temps réel actif');
 }
 
 // ═══════════════════════════════════════════════════
