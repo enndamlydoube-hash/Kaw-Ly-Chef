@@ -864,9 +864,9 @@ function saveToCloud(){
   Object.keys(R).forEach(function(cat){
     R[cat].forEach(function(r){
       var rClean = JSON.parse(JSON.stringify(r));
-      // Garder TOUTES les URLs Firebase Storage (http) + supprimer base64
+      // Garder photos base64 compressées (max ~100KB chacune) — pas de CORS
       rClean.photos = (r.photos||[]).filter(function(p){
-        return p && (p.startsWith('http') || p.startsWith('https'));
+        return p && p.length > 10;
       });
       batch.push(
         db.collection('users').doc(FIXED_UID)
@@ -910,24 +910,10 @@ function compressImage(dataUrl, maxW, quality, cb){
 
 function uploadPhoto(recipeId, idx, dataUrl){
   return new Promise(function(resolve){
-    compressImage(dataUrl, 800, 0.75, function(compressed){
-      if(!fbReady || !storage){
-        resolve(compressed);
-        return;
-      }
-      // Toujours utiliser le dossier partagé fixe = photos visibles sur tous les appareils
-      var FIXED_UID = 'kawly-chef-shared-2605';
-      var path = 'photos/' + FIXED_UID + '/' + recipeId + '_' + idx + '_' + Date.now() + '.jpg';
-      var ref = storage.ref(path);
-      ref.putString(compressed, 'data_url')
-        .then(function(){ return ref.getDownloadURL(); })
-        .then(function(url){
-          resolve(url); // URL permanente Firebase Storage — visible partout
-        })
-        .catch(function(err){
-          console.error('Upload photo error:', err);
-          resolve(compressed); // Fallback base64 local
-        });
+    // Compression forte pour stocker en base64 dans Firestore (max ~100KB)
+    // Pas de Firebase Storage = pas de CORS = photo dans l'image générée !
+    compressImage(dataUrl, 600, 0.65, function(compressed){
+      resolve(compressed); // base64 direct — fonctionne partout sans CORS
     });
   });
 }
@@ -1039,23 +1025,44 @@ function handlePh(e){
   var files=Array.from(e.target.files);if(!files.length)return;
   var r=gr(curId);if(!r)return;
   if(!r.photos)r.photos=[];
-  toast('📤 Envoi photos...');
   var done=0,total=files.length;
-  files.forEach(function(file,fi){
+  files.forEach(function(file){
     var reader=new FileReader();
     reader.onload=function(ev){
       var dataUrl=ev.target.result;
-      var idx=r.photos.length+fi;
-      uploadPhoto(r.id,idx,dataUrl).then(function(url){
-        r.photos.push(url);done++;
-        if(done===total){
-          gIdx=r.photos.length-1;
-          saveToCloud();renderGal(r);rl();
-          toast('☁️ '+total+(total>1?' photos sauvegardées dans le cloud!':' photo sauvegardée dans le cloud!')); setSyncSt('✅ Photos sync — '+new Date().toLocaleTimeString());
-        }
-      });
+      // Afficher immédiatement la photo originale
+      r.photos.push(dataUrl);
+      done++;
+      if(done===total){
+        gIdx=r.photos.length-1;
+        renderGal(r);
+        toast('✅ Photo ajoutée !');
+        // Compression en arrière-plan
+        compressAllPhotos(r, function(){
+          saveToCloud(); rl();
+        });
+      }
     };
+    reader.onerror=function(){ done++; toast('❌ Erreur lecture photo'); };
     reader.readAsDataURL(file);
+  });
+}
+
+function compressAllPhotos(r, cb){
+  var photos = r.photos.slice();
+  var done = 0;
+  if(!photos.length){ if(cb)cb(); return; }
+  photos.forEach(function(p, i){
+    if(!p || p.startsWith('http') || p.length < 50000){
+      // Déjà petite ou URL externe — garder telle quelle
+      done++; if(done===photos.length && cb) cb();
+      return;
+    }
+    compressImage(p, 480, 0.5, function(compressed){
+      r.photos[i] = compressed;
+      done++;
+      if(done===photos.length && cb) cb();
+    });
   });
 }
 // tap = fullscreen, swipe = navigate
@@ -1193,6 +1200,25 @@ function genImg(){
       // Photo avec bordure dorée arrondie
       drawPhotoRounded(ctx,photoImg,60,y,W-120,480,24);
       y+=520;
+    } else {
+      // Placeholder élégant quand pas de photo ou CORS bloqué
+      var px=60,py=y,pw=W-120,ph=200,prad=24;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(px+prad,py);ctx.lineTo(px+pw-prad,py);ctx.arcTo(px+pw,py,px+pw,py+prad,prad);
+      ctx.lineTo(px+pw,py+ph-prad);ctx.arcTo(px+pw,py+ph,px+pw-prad,py+ph,prad);
+      ctx.lineTo(px+prad,py+ph);ctx.arcTo(px,py+ph,px,py+ph-prad,prad);
+      ctx.lineTo(px,py+prad);ctx.arcTo(px,py,px+prad,py,prad);ctx.closePath();
+      var pgr=ctx.createLinearGradient(px,py,px+pw,py+ph);
+      pgr.addColorStop(0,'rgba(212,175,55,0.08)');
+      pgr.addColorStop(1,'rgba(212,175,55,0.18)');
+      ctx.fillStyle=pgr;ctx.fill();
+      ctx.strokeStyle='#D4AF37';ctx.lineWidth=3;ctx.stroke();
+      ctx.restore();
+      // Icône chef au centre
+      ctx.font='80px serif';ctx.textAlign='center';
+      ctx.fillText('👨‍🍳',W/2,py+ph/2+28);
+      y+=ph+30;
     }
 
     // Titre
@@ -1280,27 +1306,13 @@ function genImg(){
     }
   }
 
-  // Charger la photo si disponible
-  var photoUrl=r.photos&&r.photos.length?r.photos[0]:null;
+  // Photos en base64 → pas de CORS du tout !
+  var photoUrl = r.photos && r.photos.length ? r.photos[0] : null;
   if(photoUrl){
-    // Essai 1 : image depuis le DOM (déjà chargée, pas de CORS)
-    var domImg=document.getElementById('gi');
-    if(domImg&&domImg.src&&!domImg.src.endsWith('#')&&domImg.complete&&domImg.naturalWidth>0){
-      renderAll(domImg);
-    } else {
-      // Essai 2 : charger avec crossOrigin
-      var pi=new Image();
-      pi.crossOrigin='anonymous';
-      pi.onload=function(){ renderAll(pi); };
-      pi.onerror=function(){
-        // Essai 3 : sans crossOrigin (peut bloquer toDataURL mais tente)
-        var pi2=new Image();
-        pi2.onload=function(){ try{ renderAll(pi2); }catch(e){ renderAll(null); } };
-        pi2.onerror=function(){ renderAll(null); };
-        pi2.src=photoUrl+'?t='+Date.now();
-      };
-      pi.src=photoUrl;
-    }
+    var pi = new Image();
+    pi.onload = function(){ renderAll(pi); };
+    pi.onerror = function(){ renderAll(null); };
+    pi.src = photoUrl; // base64 direct, aucun problème CORS
   } else {
     renderAll(null);
   }
