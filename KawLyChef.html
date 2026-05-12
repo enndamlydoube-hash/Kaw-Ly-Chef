@@ -1306,13 +1306,26 @@ function genImg(){
     }
   }
 
-  // Photos en base64 → pas de CORS du tout !
+  // Photo → re-dessiner dans un canvas propre pour éviter "tainted"
   var photoUrl = r.photos && r.photos.length ? r.photos[0] : null;
   if(photoUrl){
     var pi = new Image();
-    pi.onload = function(){ renderAll(pi); };
+    pi.onload = function(){
+      // Re-dessiner dans un canvas propre = jamais tainted
+      var tmp = document.createElement('canvas');
+      tmp.width = pi.naturalWidth; tmp.height = pi.naturalHeight;
+      tmp.getContext('2d').drawImage(pi, 0, 0);
+      var cleanImg = new Image();
+      cleanImg.onload = function(){ renderAll(cleanImg); };
+      cleanImg.onerror = function(){ renderAll(pi); };
+      try {
+        cleanImg.src = tmp.toDataURL('image/jpeg', 0.8);
+      } catch(e) {
+        renderAll(pi); // fallback
+      }
+    };
     pi.onerror = function(){ renderAll(null); };
-    pi.src = photoUrl; // base64 direct, aucun problème CORS
+    pi.src = photoUrl;
   } else {
     renderAll(null);
   }
